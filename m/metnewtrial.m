@@ -1,0 +1,672 @@
+
+function  [ td , sd , tdstr ]  =  metnewtrial ( sd , bd , w )
+% 
+% [ td , sd , tdstr ]  =  metnewtrial ( sd , bd , w )
+% 
+% Matlab Electrophysiology Toolbox new trial descriptor. Creates a new
+% trial descriptor from information provided in session descriptor sd and
+% block descriptor bd. The head of bd's trial deck is used to set the value
+% of variable parameters. sd's trial_id field is updated to that of the
+% current trial. If w non-zero then the function attempts to create a new
+% trial directory based on fields .session_dir and .trial_id of the session
+% descriptor, called <session_dir>/trials/<trial_id>/. The trial descriptor
+% is then written to param_<trial_id>.mat and a text version is written in
+% param_<trial_id>.txt ; the string written to the text file is returned in
+% tdstr. w can be empty i.e. [] or ommitted, in which case tdstr will be
+% empty, [].
+% 
+% NOTE: Looks for global constants MC and MCC naming the MET constants and
+%   MET controller constants. If not found, then they are initialised ; the
+%   MET constants with compile-time constants only.
+% 
+% Written by Jackson Smith - Dec 2016 - DPAG , University of Oxford
+% 
+  
+  
+  %%% Global constants %%%
+  
+  % MET constants , MET controller constants
+  global  MC  MCC
+  
+  % If these haven't been set yet then set them. Note , only compile-time
+  % MET constants asked for if not already declared.
+  if  isempty (  MC )  ,   MC = met ( 'const' , 1 ) ;  end
+  if  isempty ( MCC )  ,  MCC = metctrlconst    ;  end
+  
+  
+  %%% Check optional input %%%
+  
+  % w not given
+  if  nargin  <  3  ,  w = [] ;
+  
+  % Otherwise , it is not interpretable as a logical value
+  elseif  ~ isscalar ( w )  ||  ...
+      ~ ( isnumeric ( w )  ||  islogical ( w )  ||  ischar ( w ) )
+    
+    error ( 'MET:metnewtrial:w' , ...
+      'metnewtrial: w must be a scalar numeric, logical, or char' )
+    
+  end
+  
+  
+  %%% New trial descriptor %%%
+  
+  % Initialise tdstr
+  tdstr= [] ;
+  
+  % Copy the initialiser from MET controller constants for a fresh
+  % descriptor
+  td = MCC.DAT.TD ;
+  
+  % Determine the trial identifier
+  if  isempty ( sd.trial_id )
+    
+    % No trials yet, so this is the first
+    td.trial_id = 1 ;
+    
+  else
+    
+    % Increment identifier
+    td.trial_id = sd.trial_id  +  1 ;
+    
+  end
+  
+  % Update session descriptor
+  sd.trial_id = td.trial_id ;
+  
+  % Get task from head of the trial deck
+  task = bd.task{ 1 } ;
+  td.task = task ;
+  
+  % Map that to task logic
+  td.logic = sd.task.( task ).logic ;
+  
+  % Block type name and block identifier
+  td.block_name = bd.name ;
+  td.block_id   = bd.block_id ;
+  
+  % Generate an origin on screen , in degrees of visual field
+  td.origin = makeorigin ( sd.evar ) ;
+  
+  % Reward coefficients
+  td.reward = sd.evar.reward ;
+  
+  % Task variable values on this trial
+  td.var = [  bd.varnam  ;  num2cell( bd.deck(  1  ,  :  ) )  ] ;
+  td.var = struct (  td.var { : }  ) ;
+  
+  % Load overwritten default timeout values for task logic states
+  td.state = state (  td.state  ,  sd  ,  bd  ,  task  ) ;
+  
+  % Load variable parameter values for linked stimulus definitions
+  td.stimlink = stimlink (  td.stimlink  ,  sd  ,  bd  ,  task  ) ;
+  
+  % Load stimulus event information
+  td.sevent = sevent (  td.sevent  ,  sd  ,  bd  ,  task  ) ;
+  
+  % Load MET signal event information
+  td.mevent = mevent (  td.mevent  ,  sd  ,  bd  ,  task  ) ;
+  
+  % The type of calibration used in this task
+  td.calibration = sd.logic.( td.logic ).calibration ;
+  
+  
+  %%% Trial directory %%%
+  
+  % New trial directory requested
+  if  w
+    
+    % Convert trial descriptor to a string
+    tdstr = td2char ( td , 1 ) ;
+    
+    % Make trial directory
+    tids = num2str ( td.trial_id ) ;
+    n = fullfile (  sd.session_dir  ,  MC.SESS.TRIAL  ,  tids  ) ;
+    [ S , M ] = mkdir ( n ) ;
+    
+    if  ~ S
+      error ( 'MET:metnewtrial:mkdir' , [ 'metnewtrial: mkdir , ' M ] )
+    end
+    
+    % Write trial descriptor
+    n = fullfile (  n  ,  [ 'param_' , tids ]  ) ;
+    save (  [ n , '.mat' ]  ,  'td'  )
+    
+    % Write string copy
+    metsavtxt ( [ n , '.txt' ]  ,  tdstr , 'w' , 'metnewtrial' )
+    
+    % Write trial identifier to MET root file
+    n = fullfile (  MC.ROOT.ROOT  ,  MC.ROOT.TRIAL  ) ;
+    metsavtxt ( n ,  tids , 'w' , 'metnewtrial' )
+    
+  end % new trial directory
+  
+end % metnewtrial
+
+
+%%% Subroutines %%%
+
+% Randomly samples an origin's horizontal, vertical, and depth coordinate
+% based on environment variables in evar
+function  origin = makeorigin ( evar )
+  
+  
+  %%% Constants %%%
+  
+  % Indeces in output of each coordinate. H - horizontal , V - vertical ,
+  % D - depth
+  H = 1 ;  V = 2 ;  D = 3 ;
+  
+  
+  %%% Preparation %%%
+  
+  % Initialise origin
+  origin = zeros ( 1 , 3 ) ;
+  
+  % Sampling rules
+  rule = cell ( 3 , 1 ) ;
+  
+  % Separate horizontal and vertical sampling rules based on form. 2, 4, or
+  % 5 argument forms are all handled differently.
+  switch  numel ( evar.origin )
+    
+    case  2  ,  rule{ H } = evar.origin ( 1 ) ;
+                rule{ V } = evar.origin ( 2 ) ;
+    case  4  ,  rule{ H } = evar.origin ( 1 : 2 : 3 ) ;
+                rule{ V } = evar.origin ( 2 : 2 : 4 ) ;
+    case  5  ,  rule{ H } = evar.origin ( 1 : 2 : 5 ) ;
+                rule{ V } = evar.origin ( [ 2 , 4 , 5 ] ) ;
+      
+  end
+  
+  % Depth sampling rule
+  rule{ D } = evar.disp ;
+  
+  
+  %%% Sample origin %%%
+  
+  % Horizontal
+  origin( H ) = samp (  rule { H }  ) ;
+  
+  % Vertical
+  origin( V ) = samp (  rule { V }  ) ;
+  
+  % Depth
+  origin( D ) = samp (  rule { D }  ) ;
+  
+  
+end % makeorigin
+
+
+% Samples a coordinate for the origin based on number of arguments. 1, 2,
+% or 3 argument form.
+function  s = samp ( r )
+  
+  
+  %%% Constants %%%
+  
+  % Index of lower bound , range , and gridding value
+  LB = 1 ;  R = 1 : 2 ;  G = 3 ;
+  
+  
+  %%% Sample coordinate %%%
+  
+  switch  numel ( r )
+    
+    % 1 argument , this is exactly the value to use
+    case  1  ,  s = r ;
+      
+    % 2 argument , this is a range of values to sample from uniformly
+    case  2  ,  s = rand * diff ( r )  +  r ( LB ) ;
+      
+    % 3 argument , this defines a set of discrete values to sample from
+    % uniformly
+    case  3
+      
+      % Length along axis between nodes in the grid
+      len = diff (  r ( R )  )  /  r ( G ) ;
+      
+      % Sample an index between 0 and the number of divisions of the range
+      % to get a node index
+      ind = round ( rand  *  r ( G ) ) ;
+      
+      % Determine sampled point on the grid
+      s = len * ind  +  r ( LB ) ;
+    
+  end
+  
+  
+end % samp
+
+
+% Returns overwitten logic states with new timeouts
+function  s  =  state (  s  ,  sd  ,  bd  ,  t  )
+  
+  % Get default values for this task
+  d = sd.task.( t ).def ;
+  
+  % And get the name to index mapping of logic states for the same task
+  n = sd.task.( t ).logic ;
+  m = sd.logic.( n ).istate ;
+  
+  % Any task default values for logic states?
+  if  ~ isempty ( d )
+    i = strcmp (  { d.type }  ,  'state'  ) ;
+    d = d (  i  ) ;
+  end
+  
+  % Task variables that affect state timeouts
+  i = strcmp (  { bd.var.task }  ,       t   )  &  ...
+      strcmp (  { bd.var.type }  ,  'state'  ) ;
+  v = bd.var (  i  ) ;
+  
+  % Variable to trial deck column index map
+  vi = find (  i  ) ;
+  
+  % Remove any default values that are overidden by task variables
+  if  ~ isempty ( d )
+    i = ~ ismember (  { d.name }  ,  { v.name }  ) ;
+    d = d (  i  ) ;
+  end
+  
+  % Make an element for each default timeout
+  i = isempty (  d  )  &&  isempty (  v  ) ;
+  s = repmat (  s  ,  numel ( d )  +  numel ( v ) , ~ i ) ;
+  
+  % No default timeouts specified in task declaration , return empty struct
+  if  isempty ( s )  ,  return  ,  end
+  
+  % Load task's default timeouts
+  for  i = 1 : numel ( d )
+    
+    % State's name
+    n = d( i ).name ;
+    
+    % Get state index and name
+    s( i ).istate = m.( n ) ;
+    s( i ).nstate = n ;
+    
+    % Default timeout for this task
+    s( i ).timeout = d( i ).value ;
+    
+  end % Default timeouts
+  
+  % Load task variable timeout values
+  for  i = 1 : numel ( v )
+    
+    % Index for output struct
+    j = i  +  numel ( d ) ;
+    
+    % State's name
+    n = v( i ).name ;
+    
+    % Get state index and name
+    s( j ).istate = m.( n ) ;
+    s( j ).nstate = n ;
+    
+    % Variable timeout value
+    s( j ).timeout = bd.deck (  1  ,  vi ( i )  ) ;
+    
+  end % Variable timeouts
+  
+end % state
+
+
+% Returns a struct containing the specific values for all variable
+% parameters of stimulus definitions linked to task stimuli.
+function  s = stimlink ( s , sd , bd , t )
+  
+  
+  %%% Constants %%%
+  
+  % Stimulus definition variable parameter definition cell array , column
+  % indeces for parameter name and default value
+  NV = [ 1 , 3 ] ;
+  
+  
+  %%% Stim links %%%
+  
+  % Get list of stimulus link names and a struct of their attributes
+  snam = fieldnames (  sd.task.( t ).link  ) ;
+  satt = struct2cell (  sd.task.( t ).link  ) ;
+  satt = [  satt{ : }  ] ;
+  
+  % Get name to index mapping for task stimuli used in this task
+  n = sd.task.( t ).logic ;
+  tsm = sd.logic.( n ).istim ;
+  
+  % Default values for this task , discard task logic timeout values
+  def = sd.task.( t ).def ;
+  
+  if  ~ isempty ( def )
+    def = def (  strcmp(  { def.type }  ,  'stim'  )  ) ;
+  end
+  
+  % Task variables that change stimulus variable parameters
+  i = strcmp (  { bd.var.task }  ,      t   )  &  ...
+      strcmp (  { bd.var.type }  ,  'stim'  ) ;
+  var = bd.var (  i  ) ;
+  
+  % Task variable to trial deck column index mapping
+  vi = find (  i  ) ;
+  
+  % Make a struct with one element per stimulus link
+  s = repmat (  s  ,  size ( snam )  ) ;
+  
+  % No linked stimuli in this task
+  if  isempty ( s )  ,  return  ,  end
+  
+  % Set values for each link , load stimulus definition default values for
+  % variable parameters
+  for  i = 1 : numel ( s )
+    
+    % Build a name to index mapping for stimulus links in struct s
+    slm.( snam{ i } ) = i ;
+    
+    % Stimulus link name
+    s( i ).name = snam { i } ;
+    
+    % Task stimulus name
+    n = satt( i ).stim ;
+    s( i ).nstim = n ;
+    
+    % Task stimulus index
+    s( i ).istim = tsm.( n ) ;
+    
+    % Stimulus definition name
+    n = satt( i ).def ;
+    s( i ).stimdef = n ;
+    
+    % Stimulus definition type
+    s( i ).type = sd.type.( n ) ;
+    
+    % Stimulus definition variable parameters and default values
+    VPAR = sd.vpar.( n )( : , NV )' ;
+    s( i ).vpar = struct (  VPAR { : }  ) ;
+    
+  end % links
+  
+  % Overwrite stimulus definition default values by task's default values
+  for  i = 1 : numel ( def )
+    
+    % Stimulus link name
+    n = def( i ).name ;
+    
+    % Get link's index in struct s
+    j = slm.( n ) ;
+    
+    % Name of variable parameter to set
+    n = def( i ).vpar ;
+    
+    % Set task's default value
+    s( j ).vpar.( n ) = def( i ).value ;
+    
+  end % default values
+  
+  % Overwrite all default values for variable parameters with the value of
+  % task variables
+  for  i = 1 : numel ( var )
+    
+    % Stimulus link name
+    n = var( i ).name ;
+    
+    % Get link's index in struct s
+    j = slm.( n ) ;
+    
+    % Name of variable parameter to set
+    n = var( i ).vpar ;
+    
+    % Set task's default value
+    s( j ).vpar.( n ) = bd.deck (  1  ,  vi ( i )  ) ;
+    
+  end % task variables
+  
+end % stimlink
+
+
+% Returns a struct with an element for each stimulus event , accounts for
+% task variable values
+function  s = sevent (  s  ,  sd  ,  bd  ,  t  )
+  
+  % MET controller constants
+  global  MCC
+  
+  % There are no stimulus events. Return empty struct.
+  if  isempty (  sd.task.( t ).sevent  )
+    s = repmat ( MCC.DAT.TD.sevent , 0 , 0 ) ;
+    return
+  end % no sevents
+  
+  % Get list of stimulus event names and a struct of their attributes
+  snam = fieldnames (  sd.task.( t ).sevent  ) ;
+  satt = struct2cell (  sd.task.( t ).sevent  ) ;
+  satt = [  satt{ : }  ] ;
+  
+  % State name to index map for task's logic
+  n = sd.task.( t ).logic ;
+  mstate = sd.logic.( n ).istate ;
+  
+  % Stimulus link name to index mapping
+  n = fieldnames (  sd.task.( t ).link  )' ;
+  n = [  n  ;  num2cell( 1 : numel( n ) )  ] ;
+  mlink = struct ( n { : } ) ;
+  
+  % Look for task variables that change stimulus event value
+  i = strcmp (  { bd.var.task }  ,        t   )  &  ...
+      strcmp (  { bd.var.type }  ,  'sevent'  ) ;
+  var = bd.var (  i  ) ;
+  
+  % Task variable to trial deck column index mapping
+  vi = find (  i  ) ;
+  
+  % Make an element in output struct for each stimulus event
+  s = repmat (  s  ,  size ( snam )  ) ;
+  
+  % No stimulus events
+  if  isempty ( s )  ,  return  ,  end
+  
+  % Load each stimulus event
+  for  i = 1 : numel ( s )
+    
+    % Name of stimulus event
+    n = snam { i } ;
+    s( i ).name = n ;
+    
+    % Make a name to index mapping for output struct
+    m.( n ) = i ;
+    
+    % Name of stimulus event's logic state
+    n = satt( i ).state ;
+    s( i ).nstate = n ;
+    
+    % Map state name to index
+    s( i ).istate = mstate.( n ) ;
+    
+    % Name of stimulus link
+    n = satt( i ).link ;
+    s( i ).nstimlink = n ;
+    
+    % Index of stimulus link
+    s( i ).istimlink = mlink.( n ) ;
+    
+    % Name of the variable parameter to change
+    s( i ).vpar = satt( i ).vpar ;
+    
+    % Value that the parameter will change to
+    s( i ).value = satt( i ).value ;
+    
+  end % loading
+  
+  % Overwrite default value of stimulus event with the value of task
+  % variables
+  for  i = 1 : numel ( var )
+    
+    % Index of stimulus event to change in output struct
+    j = m.(  var( i ).name  ) ;
+    
+    % Change stimulus event value
+    s( j ).value = bd.deck (  1  ,  vi ( i )  ) ;
+    
+  end % task variables
+  
+end % sevent
+
+
+% Returns a struct with an element for each MET signal event , accounts for
+% task variable values
+function  s = mevent (  s  ,  sd  ,  bd  ,  t  )
+  
+  
+  %%% Global variables %%%
+  
+  % MET constants & controller constants
+  global  MC  MCC
+  
+  % Make a name to identifier map for MET signals
+  MSIG = MC.SIG' ;  MSIG = struct (  MSIG{ : }  ) ;
+  
+  
+  %%% Load MET signal events %%%
+  
+  % There are no MET signal events. Return empty struct.
+  if  isempty (  sd.task.( t ).mevent  )
+    s = repmat ( MCC.DAT.TD.mevent , 0 , 0 ) ;
+    return
+  end % no mevents
+  
+  % Get list of MET signal event names and a struct of their attributes
+  snam = fieldnames (  sd.task.( t ).mevent  ) ;
+  satt = struct2cell (  sd.task.( t ).mevent  ) ;
+  satt = [  satt{ : }  ] ;
+  
+  % State name to index map for task's logic
+  n = sd.task.( t ).logic ;
+  mstate = sd.logic.( n ).istate ;
+  
+  % Look for task variables that change MET signal event cargo
+  i = strcmp (  { bd.var.task }  ,        t   )  &  ...
+      strcmp (  { bd.var.type }  ,  'mevent'  ) ;
+  var = bd.var (  i  ) ;
+  
+  % Task variable to trial deck column index mapping
+  vi = find (  i  ) ;
+  
+  % Make an element in output struct for each MET signal event
+  s = repmat (  s  ,  size ( snam )  ) ;
+  
+  % No MET signal events
+  if  isempty ( s )  ,  return  ,  end
+  
+  % Load each MET signal event
+  for  i = 1 : numel ( s )
+    
+    % Name of MET signal event
+    n = snam { i } ;
+    s( i ).name = n ;
+    
+    % Make a name to index mapping for output struct
+    m.( n ) = i ;
+    
+    % Name of MET signal event's logic state
+    n = satt( i ).state ;
+    s( i ).nstate = n ;
+    
+    % Map state name to index
+    s( i ).istate = mstate.( n ) ;
+    
+    % Name of MET signal
+    n = satt( i ).msignal ;
+    s( i ).msigname = n ;
+    
+    % Map to MET signal identifier
+    s( i ).msig = MSIG.( n ) ;
+    
+    % MET signal cargo
+    s( i ).cargo = satt( i ).cargo ;
+    
+  end % loading
+  
+  % Overwrite default cargo of MET signal event with the value of task
+  % variables
+  for  i = 1 : numel ( var )
+    
+    % Index of MET signal event to change in output struct
+    j = m.(  var( i ).name  ) ;
+    
+    % Change MET signal event cargo
+    s( j ).cargo = bd.deck (  1  ,  vi ( i )  ) ;
+    
+  end % task variables
+  
+  
+end % mevent
+
+
+% Converts the trial descriptor to a string. Field name and string contents
+% are printed together on the same line if contents are not a struct.
+% Otherwise a new line is printed for each sub-struct element, which is
+% tabbed t times by pairs of spaces. All field strings are combined by a
+% newline if t is one , or by a comma if greater.
+function  tdstr  =  td2char ( td , t )
+  
+  % System newline character
+  nlc = sprintf ( '\n' ) ;
+  
+  % First get a list of all fields
+  F = fieldnames ( td ) ;
+  
+  % Then convert from struct to cell array with one element per field
+  C = struct2cell ( td ) ;
+  
+  % Loop each field and convert contents to a string
+  for  i = 1 : numel ( C )
+    
+    % Get string version of contents
+    if  isstruct (  C { i }  )
+      
+      % Call the function again to convert sub-structs
+      S = cell (  1  ,  numel (  C { i }  )  ) ;
+      
+      for  j = 1 : numel (  C { i }  )
+        S{ j } = td2char (  C { i }( j )  ,  t + 1  ) ;
+      end
+      
+      % Combine strings together
+      C{ i } = strjoin (  [  { '' }  ,  S  ]  ,  ...
+        [  nlc  ,  repmat( '  ' , 1 , t )  ]  ) ;
+      
+    elseif  isnumeric (  C { i }  )
+      
+      % Format depends on whether it is scalar
+      if  isscalar (  C { i }  )
+        
+        % Straight conversion
+        C{ i } = num2str ( C { i } ) ;
+        
+      else
+        
+        % Return a string that can be used to evaluate a numeric matrix
+        C{ i } = mat2str ( C { i } ) ;
+        
+        % Format it to look nice
+        C{ i } = regexprep (  C { i }  ,  { ' ' , ';' , '[' , ']' }  ,  ...
+          { ' , ' , ' ; ' , '[ ' , ' ]' }  ) ;
+        
+      end
+      
+    end % contents to string
+    
+    % Join field name and contents string together
+    C{ i } = [ F{ i } , ':  ' , C{ i } ] ;
+    
+  end % fields
+  
+  % Join all strings together into one
+  if  t - 1  %#ok
+    tdstr = strjoin (  C  ,  ' , '  ) ;
+  else
+    tdstr = strjoin (  C  ,   nlc   ) ;
+  end
+  
+end % td2char
+

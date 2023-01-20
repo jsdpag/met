@@ -1,0 +1,13 @@
+param,value
+enable,on
+port,/dev/ttyUSB0
+baud,115200
+parity,None
+databits,8
+stopbits,1
+flowcontrol,Hardware
+pollrate,10
+starthex,01
+stophex,02
+startwait,0.5
+stopwait,0.25

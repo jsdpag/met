@@ -1,0 +1,117 @@
+
+A reminder of how MC is structured, as of MET v00.01.29
+
+MC.CD % Depends on controller's place in .cmet file
+ans =
+
+     1
+
+MC.AWMSIG
+ans =
+
+   256
+
+MC.SIG
+ans = 
+
+    'mnull'         [ 0]
+    'mready'        [ 1]
+    'mstart'        [ 2]
+    'mstop'         [ 3]
+    'mwait'         [ 4]
+    'mquit'         [ 5]
+    'mstate'        [ 6]
+    'mtarget'       [ 7]
+    'mreward'       [ 8]
+    'mrdtype'       [ 9]
+    'mcalibrate'    [10]
+
+MC.OUT
+ans = 
+
+    'correct'    [1]
+    'failed'     [2]
+    'ignored'    [3]
+    'broken'     [4]
+    'aborted'    [5]
+
+MC.ERR
+ans = 
+
+    'NONE'     [ 0]
+    'PBSRC'    [ 1]
+    'PBSIG'    [ 2]
+    'PBCRG'    [ 3]
+    'PBTIM'    [ 4]
+    'SYSER'    [ 5]
+    'BRKBP'    [ 6]
+    'BRKRP'    [ 7]
+    'CLGBP'    [ 8]
+    'CLGRP'    [ 9]
+    'CHLD'     [10]
+    'INTR'     [11]
+    'INTRN'    [12]
+    'TMOUT'    [13]
+    'MATLB'    [14]
+
+MC.SHM % Depends on what permissions were provided in the .cmet file
+ans = 
+
+    'stim'    'r'
+    'stim'    'w'
+    'eye'     'r'
+    'eye'     'w'
+    'nsp'     'r'
+    'nsp'     'w'
+
+MC.MREADY
+ans = 
+
+    TRIGGER: 1
+      REPLY: 2
+
+MC.MWAIT
+ans = 
+
+      INIT: 1
+    FINISH: 1
+     ABORT: 2
+
+MC.MCALIBRATE
+ans = 
+
+    NONE: 0
+
+MC.PROG
+ans = 
+
+    STIM: '/home/dev/Documents/met/stim'
+    TLOG: '/home/dev/Documents/met/tasklogic'
+
+MC.ROOT
+ans = 
+
+     ROOT: '~/.met'
+     SESS: 'session'
+    TRIAL: 'trial'
+
+MC.SESS
+ans = 
+
+      FIN: '.finalise'
+      FTR: 'footer.mat'
+      HDR: 'header.mat'
+     LOGS: 'logs'
+      REC: 'recovery'
+    SCHED: 'schedule.txt'
+     STIM: 'stim'
+      SUM: 'summary.txt'
+     TLOG: 'tasklogic'
+    TRIAL: 'trials'
+
+MC.TRIAL
+ans = 
+
+    PAR: 'param.mat'
+    PTX: 'param.txt'
+

@@ -1,0 +1,5 @@
+param,value
+THRMUL,2.5
+VELTHR,30
+ACCTHR,8000
+FBLINK,0.2

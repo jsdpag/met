@@ -1,0 +1,51 @@
+
+/* Question , is there a generic function that can create a Matlab array
+  of any type? All the types listed in classid run with
+  mxCreateNumericArray , except mxSTRUCT_CLASS which causes a segmentation
+  fault. */
+
+#include  "mex.h"
+#include  "matrix.h"
+
+#define  NOUT  14
+
+void  mexFunction ( int  nlhs ,       mxArray *  plhs[] ,
+                    int  nrhs , const mxArray *  prhs[] )
+{
+  
+  /* Constants */
+  mwSize  ndim = 2 , dims[ 2 ] = { 1 , 1 } ;
+  
+  mxClassID  classid[ NOUT ] = { mxCELL_CLASS , mxSTRUCT_CLASS , 
+    mxLOGICAL_CLASS , mxCHAR_CLASS , mxDOUBLE_CLASS , mxSINGLE_CLASS ,
+    mxINT8_CLASS , mxUINT8_CLASS , mxINT16_CLASS , mxUINT16_CLASS ,
+    mxINT32_CLASS , mxUINT32_CLASS , mxINT64_CLASS , mxUINT64_CLASS } ;
+  
+  char * classnm[ NOUT ] = { "mxCELL_CLASS" , "mxSTRUCT_CLASS" ,
+    "mxLOGICAL_CLASS" , "mxCHAR_CLASS" , "mxDOUBLE_CLASS" ,
+    "mxSINGLE_CLASS" , "mxINT8_CLASS" , "mxUINT8_CLASS" , "mxINT16_CLASS" ,
+    "mxUINT16_CLASS" , "mxINT32_CLASS" , "mxUINT32_CLASS" ,
+    "mxINT64_CLASS" , "mxUINT64_CLASS" } ;
+    
+  /* Variables */
+  int  i ;
+  mxArray *  M ;
+  
+  /* Make output cell */
+  plhs[ 0 ] = mxCreateCellMatrix ( NOUT , 1 ) ;
+  
+  /* Make each kind of array type */
+  for  ( i = 0 ; i  <  NOUT ; ++i )
+  {
+    mexPrintf ( "%s plhs{ %d } of type %s\n" ,
+      classid[ i ] == mxSTRUCT_CLASS ? "Skipping" : "Creating" ,
+      i , classnm[ i ] ) ;
+    
+    if  ( classid[ i ]  ==  mxSTRUCT_CLASS )  continue ;
+    
+    M = mxCreateNumericArray ( ndim , dims , classid[ i ] , mxREAL ) ;
+    mxSetCell ( plhs[ 0 ] , i , M ) ;
+  }
+  
+}
+

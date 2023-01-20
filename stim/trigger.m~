@@ -1,0 +1,227 @@
+
+function  [ type , vpar , init , stim , close , chksum ] = trigger ( ~ )
+% 
+% [ type , vpar , init , stim , close , chksum ] = trigger ( rfdef )
+% 
+% Matlab Electrophysiology Toolbox (MET) PsychToolbox stimulus definition.
+% 
+% Flashes a greyscale square for a single frame per trial in order to
+% provide a TTL trigger. It is assumed that the square is measured with a
+% photodiode that is appropriately amplified. The output of the photodiode
+% may then be used as a trigger for such things as microstimulation.
+% 
+% A square wave pulse is generated that lasts for the duration of at least
+% a single screen refresh.
+% 
+% NB! rectleft, recttop, rectright, rectbottom all ignore the hmirror and
+% vmirror values in metscrnpar.csv. That is, the square will appear where
+% the rect* parameters say it will, even if mirroring is enabled.
+%
+% Variable parameters
+% 
+%   rectleft - Coordinate of left-hand edge of square, in pixels from the
+%     left edge of the screen. Default 1450.
+%   
+%   recttop - Coordinate of the top edge of the square, in pixels from the
+%     top of the screen. Default 0.
+%   
+%   rectright - Coordinate of the right-hand edge of the square, in pixels
+%     from the left edge of the screen. Default 1600.
+%   
+%   rectbottom - Coordinate of the bottom edge of the square, in pixels
+%     from the top of the screen. Default 150.
+%   
+%   wait - Wait at least this many seconds from the onset of the first
+%     frame that draws the background trigger object to the moment the
+%     bright trigger object is drawn. If there is a skipped frame then this
+%     will not be accurate. Default 0.
+% 
+%   drawbase - Binary value of 0 or 1. 1 means draw the trigger rectangle
+%     with the baseline greyscale value on all frames but the triggered
+%     frame, when the 'trigger' greyscale is used. 0 means that the trigger
+%     object is drawn on the trigger frame and only the trigger frame with
+%     the 'trigger' greyscale value; no background trigger object is drawn.
+%   
+%   baseline - The normalised greyscale value to use when the trigger is
+%     off. Default 0.
+%   
+%   trigger - The normalised greyscale value to use for the triggering
+%     frame. Default 0.74.
+% 
+% The correct way to use the trigger object is to link it to a PTB stimulus
+% in the task logic. Waiting time is counted from the onset of the first
+% frame to show the trigger object. For instance, if the oddoneout.txt task
+% logic is used and the trigger is linked to the target PTB stimulus, then
+% the trigger will light up on the first frame of the present state.
+% 
+% Written by Jackson Smith - Oct 2019 - DPAG, University of Oxford
+% 
+  
+  % This is a MET PsychToolbox visual stimulus
+  type = 'ptb' ;
+  
+  % Variable parameter set
+  vpar = {  'rectleft'  ,  'f'  ,  1450   ,  -Inf  ,  +Inf  ;
+             'recttop'  ,  'f'  ,     0   ,  -Inf  ,  +Inf  ;
+           'rectright'  ,  'f'  ,  1600   ,  -Inf  ,  +Inf  ;
+          'rectbottom'  ,  'f'  ,   150   ,  -Inf  ,  +Inf  ;
+                'wait'  ,  'f'  ,   0.0   ,     0  ,  +Inf  ;
+            'baseline'  ,  'f'  ,   0.0   ,     0  ,  +1    ;
+             'trigger'  ,  'f'  ,   0.74  ,     0  ,  +Inf  } ;
+            
+  % Function handles
+	 init = @finit ;
+   stim = @fstim ;
+  close = @fclose ;
+ chksum = @fchksum ;
+  
+end % trigger
+
+
+%%% Stimulus definition handles %%%
+
+% Trial initialisation function
+function  S = finit ( vpar , tconst , Sold )
+  
+  % Get a copy of variable parameters
+  S.vp = vpar ;
+  
+  % Get MET screen parameters if not already obtained
+  if  isempty (  Sold  )
+    
+    S.p = metscrnpar ;
+    
+  else
+    
+    S.p = Sold ;
+    
+  end % MET screen par
+  
+  % Prepare PsychRect coordinates
+  S.rect = zeros( 4 , 1 ) ;
+  
+  % Horizontal mirroring is on
+  if  S.p.hmirror
+    
+    % Subtract coordinates from screen width to get mirrored image
+    S.rect( RectLeft  ) = tconst.winwidth  -  vpar.rectright ;
+    S.rect( RectRight ) = tconst.winwidth  -  vpar.rectleft  ;
+    
+  % No horizontal mirroring
+  else
+    
+    % Set left and right edges as stated in variable params
+    S.rect( RectLeft  ) = vpar.rectleft  ;
+    S.rect( RectRight ) = vpar.rectright ;
+    
+  end % left/right
+  
+  % Vertical mirroring is on
+  if  S.p.vmirror
+    
+    % Subtract coordinates from screen height to get mirrored image
+    S.rect( RectTop    ) = tconst.winheight  -  vpar.rectbottom ;
+    S.rect( RectBottom ) = tconst.winheight  -  vpar.recttop    ;
+    
+  % No horizontal mirroring
+  else
+    
+    % Set top and bottom edges as stated in variable params
+    S.rect( RectTop    ) = vpar.recttop    ;
+    S.rect( RectBottom ) = vpar.rectbottom ;
+    
+  end % left/right
+  
+  % Time zero for the trigger object. This will be set to the expected
+  % presentation time of the trigger's first frame. The waiting period is
+  % measured against this time.
+  S.zero = 0 ;
+  
+  % The wait flag is raised if we're still waiting for the trigger to show
+  S.wait = true ;
+  
+  % State of the trigger, if this is false then we still need to show the
+  % trigger, if true then it has been shown
+  S.shown = false ;
+  
+  % Hit region is a 8-column square definition , ignore column is zero
+  S.hitregion = zeros ( 1 , 8 ) ;
+  
+end % finit
+
+
+% Stimulation function
+function  [ S , h ] = fstim ( S , tconst , tvar )
+  
+  % No hit region updates
+  h = false ;
+  
+  % The trigger has been shown
+  if  S.shown
+    
+    % Baseline greyscale , no trigger
+    col = S.vp.baseline ;
+    
+  % The trigger has not been shown but we are still waiting to show it
+  elseif  S.wait
+    
+    % Time zero not yet set , make it expected time of trigger's 1st frame
+    if  ~ S.zero  ,  S.zero = tvar.ftime ;  end
+    
+    % Is the next frame expected to occur after the waiting period is over?
+    if  tvar.ftime - S.zero  >=  S.vp.wait
+      
+      % Lower wait flag
+      S.wait = false ;
+      
+      % Raise shown flag
+      S.shown = true ;
+      
+      % Bright greyscale , show the trigger
+      col = S.vp.trigger ;
+      
+    % Still waiting
+    else
+      
+      % Baseline greyscale , no trigger
+      col = S.vp.baseline ;
+      
+    end % check timer
+    
+  end % get greyscale
+  
+  % Draw rectangle
+  Screen (  'FillRect' ,  tconst.winptr ,  col ,  S.rect  ) ;
+  
+end % fstim
+
+
+% Trial closing function
+function  S = fclose ( S , type )
+  
+  % Type of closure
+  switch  type
+    
+    % Trial closure
+    case  't'
+      
+      % Return MET screen parameters
+      S = S.p ;
+      
+    % Don't return anything
+    otherwise
+      
+      S = [ ] ;
+    
+  end % type of closure
+  
+end % close
+
+
+% Check-sum function
+function  c = fchksum ( ~ )
+  
+  c = 0 ;
+  
+end % chksum
+

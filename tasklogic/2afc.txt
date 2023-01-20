@@ -1,0 +1,62 @@
+
+%
+% Two-alternative forced choice task logic. Supports classic version with a
+% fixed test stimulus presentation period followed by choice targets, a
+% purely reaction-time version of the task, or a combination. Change the
+% timeout durations to vary between versions. Note that reactime, the
+% reaction time state, keeps the fixation stimulus ; however, a stimulus
+% event can be connected to reactim that changes some property of the 
+% linked stimulus definition, to tell the subject that they may respond.
+% 
+% Written by Jackson Smith - Feb 2017 - DPAG , University of Oxford
+%
+
+name  TwoAltForcedChoice
+
+stim  % Task stimuli , none is implicit
+  
+    fix  % Gaze fixation target
+   test  % Stimulus that subject discriminates
+  ftarg  % Failed-choice saccade target
+  ctarg  % Correct-choice saccade target
+
+
+state  % States of the task , none applied to all states
+
+  start  10.0  fix                  % Establish fixation
+holdfix   0.5  fix                  % Hold fixation
+lostfix   1.0  fix                  % Fixation lost
+present   2.0  test fix             % Forced duration test presentation
+reactim   0.0  test ftarg ctarg fix % Reaction time test presentation
+ choice   0.5  ftarg ctarg          % Present choice targets
+ 
+
+edge  % Define state transitions
+
+  start
+    holdfix  B  fix   % start -> holdfix if fix targ before timeout
+    ignored  T  none  % start -> ignored if fixation never established
+    
+  holdfix
+    lostfix  B  none  % holdfix -> lostfix if fixation lost before timeout
+    present  T  fix   % holdfix -> present if fixation held
+
+  lostfix
+    holdfix  B  fix   % lostfix -> holdfix if fixation re-established
+     broken  T  none  % lostfix -> broken if fixation not made in time
+
+  present
+   reactim  T  fix        % present -> reactim if fixation held
+    broken  B  none test  % present -> broken if fixation lost
+
+  reactim
+    choice  T  fix        % reactim -> choice if fixation held
+   correct  B  ctarg      % reactim -> correct correct choice target
+    failed  B  ftarg      % reactim -> failed failed choice target
+    broken  B  none test  % reactim -> broken if no valid stim selected
+    
+  choice
+    correct  B  ctarg  % choice -> correct correct choice target
+     failed  B  ftarg  % choice -> failed failed choice target
+     broken  T  none   % choice -> broken if nothing targeted at timeout
+

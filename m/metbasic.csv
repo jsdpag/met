@@ -1,0 +1,11 @@
+param,value
+psq_halig,l
+psq_valig,b
+psq_npulse,5
+psq_width,40
+psq_high,1
+psq_low,0.25
+ttl_low,0
+ttl_high,1
+ttl_mindur,0.005
+inter_trial,0.5

@@ -1,0 +1,6 @@
+metgui     -rstim -reye  -nodesktop
+metptb     -wstim        -nodesktop -nosplash
+metdaqeye         -weye  -nojvm
+mettarget  -rstim -reye  -nojvm
+metrteyes  -rstim -reye  -nodesktop -nosplash
+metdaqout                -nojvm

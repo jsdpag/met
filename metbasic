@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#
+# metbasic
+# 
+# Opens a -nodesktop Matlab session that runs metbasic.m.
+# This provides a simple command-line based environment
+# for running a simple experiment using MET PTB stimulus
+# definitions. See help for met/m/metbasic for more info.
+#
+
+ptb3-matlab  -nodesktop  -nosplash  -r metbasic
+

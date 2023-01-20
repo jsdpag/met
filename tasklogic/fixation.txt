@@ -1,0 +1,42 @@
+
+%
+% A simple fixation task. The subject selects the fixation target for a set
+% duration for correct performance. A distractor target can be presented.
+% Link this to the null stimulus definition if no distractor is needed.
+% Otherwise, this can serve to train an animal to ignore some test
+% stimulus, or it can be linked to a receptive-field mapping tool.
+%
+% Written by Jackson Smith - Feb 2017 - DPAG , University of Oxford
+%
+
+name Fixation
+
+
+stim  % Task stimuli , none is implicit
+  
+         fix  % Gaze fixation target
+  distractor  % Subject must avoid selecting this
+
+
+state  % States of the task , none applied to all states
+
+  start  10.0  distractor fix  % Establish fixation
+holdfix   2.0  distractor fix  % Hold fixation
+lostfix   1.0  distractor fix  % Fixation lost
+
+
+edge  % Define state transitions
+
+  start
+    holdfix  B  fix   % start -> holdfix if fix targ before timeout
+    ignored  T  none  % start -> ignored if fixation never established
+    
+  holdfix
+    lostfix  B  none        % holdfix -> lostfix broke fix. before timeout
+    correct  T  fix         % holdfix -> correct if fixation held
+     failed  B  distractor  % holdfix -> failed if distractor selected
+
+  lostfix
+    holdfix  B  fix   % lostfix -> holdfix if fixation re-established
+     broken  T  none  % lostfix -> broken if fixation not made in time
+

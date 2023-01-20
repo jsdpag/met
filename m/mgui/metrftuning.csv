@@ -1,0 +1,8 @@
+param,value
+taskvar,disparity
+chan,max
+unit,max
+state1,present
+msoffset1,0
+state2,reactim
+msoffset2,0

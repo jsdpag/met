@@ -1,0 +1,6 @@
+param,value
+type,4
+contrast,0.15
+failed,0.250
+ignored,0
+broken,0.100

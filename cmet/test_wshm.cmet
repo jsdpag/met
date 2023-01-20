@@ -1,0 +1,2 @@
+test_wshm -nodesktop -wnsp
+test_wshm -nodesktop -rnsp

@@ -1,0 +1,12 @@
+param,value
+taskvar,TargYCoord
+tvnorm,x
+taskstim,distractor
+faudio,44100
+kernwidth,0.001
+kernfreq,1000
+baseline,10
+maxtest,150
+refract,0.002
+basedur,10
+testdur,5

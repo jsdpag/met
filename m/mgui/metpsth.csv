@@ -1,0 +1,8 @@
+param,value
+task,OddOneOut_SimSpk
+state,present
+msoffset1,-300
+msoffset2,2000
+binwid,100
+chan,max
+unit,max

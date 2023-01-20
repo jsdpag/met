@@ -1,0 +1,44 @@
+
+/*  metxcidname.c
+  
+  const char *  metxcidname ( mxClassID  cid )
+  
+  Returns pointer to string naming the given mcClassID value. Returns NULL
+  for unrecognised values.
+  
+  
+  Written by Jackson Smith - DPAG , University of Oxford
+  
+*/
+
+
+/*--- Include block ---*/
+
+#include  "metx.h"
+
+
+/*--- Define block ---*/
+
+#define  MAXCID  mxFUNCTION_CLASS
+
+
+/*--- Constant string literals ---*/
+
+const char *  CIDNAM[] = { "UNKNOWN" , "CELL" , "STRUCT" , "LOGICAL" ,
+  "CHAR" , "VOID" , "DOUBLE" , "SINGLE" , "INT8" , "UINT8" , "INT16" ,
+  "UINT16" , "INT32" , "UINT32" , "INT64" , "UINT64" , "FUNCTION" } ;
+
+
+/*--- metxcidname function definition ---*/
+
+const char *  metxcidname ( mxClassID  cid )
+{
+  
+  /* cid is out of range */
+  if  ( cid  <  0  ||  MAXCID  <  cid  )  return  NULL ;
+  
+  /* Return pointer to string literal */
+  return  CIDNAM[ cid ] ;
+  
+} /* metxcidname */
+

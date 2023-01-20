@@ -1,0 +1,310 @@
+
+function  [ type , vpar , init , stim , close , chksum ] = rfmapbar ( ~ )
+% 
+% [ type , vpar , init , stim , close , chksum ] = rfmapbar ( rfdef )
+% 
+% Matlab Electrophysiology Toolbox (MET) PsychToolbox stimulus definition.
+% 
+% Draws a mouse-controlled bar on screen. Bar is drawn when the left mouse
+% button is down. The mouse-wheel is used to change bar orientation.
+% Holding the shift key will make the bar change height when the mouse
+% wheel is used. Holding the control key will make the bar change width
+% when the mouse wheel is used. Space key prints readout in terminal with
+% bar parameters.
+% 
+% Variable parameters
+% 
+% There is a single variable parameter called Null that has no effect on
+% the appearance of the bar.
+% 
+% Written by Jackson Smith - Jan 2017 - DPAG , University of Oxford
+% 
+  
+
+  % This is a MET PsychToolbox visual stimulus
+  type = 'ptb' ;
+  
+  % Variable parameter set
+  vpar = {  'Null'  ,  'f'  ,  0.0   ,  -Inf  ,  +Inf  } ;
+            
+  % Function handles
+	 init = @finit ;
+   stim = @fstim ;
+  close = @fclose ;
+ chksum = @fchksum ;
+  
+
+end % rfmapbar
+
+
+%%% Stimulus definition handles %%%
+
+% Trial initialisation function
+function  S = finit ( ~ , tconst , S_old )
+  
+  
+  %%% Return old stimulus descriptor %%%
+  
+  % We don't want to write-over current width, height, or rotation that was
+  % used on the last trial, if available
+  if  ~ isempty ( S_old )
+    S = S_old ;
+    return
+  end
+  
+  
+  %%% Constants %%%
+  
+  % Mouse button indices , and minimum duration from right-clicking
+  % stimulus on until it can be turned off.
+  C.LEFT = 1 ;
+  C.MIDDLE = 2 ;
+  C.RIGHT = 3 ;
+  
+  % Modifier keys
+  C.SHIFT = [ KbName( 'LeftShift' ) , KbName( 'RightShift' ) ] ;
+  C.CTRL = [ KbName( 'LeftControl' ) , KbName( 'RightControl' ) ] ;
+  C.SPACE = KbName( 'space' ) ;
+  
+  % Rates of change, in degrees per click
+  C.dHEIGHT = 0.1 ;
+  C.dWIDTH  = 0.1 ;
+  C.dANGLE  = 5.0 ;
+  
+  % Minimum duration between readouts
+  C.MINDUR = 0.1 ;
+  
+  % Square hit region column indeces
+  C.C8 = tconst.MCC.SDEF.ptb.hitregion.eightcol ;
+  C8 = C.C8 ;
+  
+
+  %%% Initialise bar parameters %%%
+  
+  % Store constants
+  S.C = C ;
+  
+  % Hit region will store info about width, height, and angle while also
+  % providing this data to the rest of MET
+  S.hitregion = zeros ( 1 , 8 ) ;
+  
+  % Initial values
+  S.hitregion( C8.xcoord   ) = 0   ;
+  S.hitregion( C8.ycoord   ) = 0   ;
+  S.hitregion( C8.width    ) = 3.0 ;
+  S.hitregion( C8.height   ) = 0.5 ;
+  S.hitregion( C8.rotation ) = 90 ;
+  S.hitregion( C8.disp     ) = 0 ;
+  S.hitregion( C8.dtoler   ) = 0.5 ;
+  S.hitregion( C8.ignore   ) = 0 ;
+  
+  % Store a PTB rect with the current bar location , for use by FillRect.
+  % By convention, this will be -1 if the bar is not being drawn.
+  S.rect = - ones ( 4 , 2 ) ;
+  
+  % Last time that readout was printed
+  S.t = 0 ;
+  
+end % finit
+
+
+% Stimulation function
+function  [ S , h ] = fstim ( S , tconst , tvar )
+  
+  
+  %%% Update stimulus appearance %%%
+  
+  % Hit region update not expected by default
+  h = false ;
+  
+  % Monoscopic mode or left-eye buffer is being drawn to
+  if  tvar.eyebuf < 1
+    
+    % Get state of the mouse
+    [ x , y , b , w ] = metgetmouse ;
+    
+    % Is the left mouse button up?
+    if  ~ b( S.C.LEFT )
+      
+      % Convention, mouse button is up
+      S.rect( : ) = -1 ;
+      
+      % Don't draw anything
+      return
+      
+    end % left button up
+    
+    % See the state of the keyboard
+    [ ~ , ~ , k ] = KbCheck ;
+    
+    % Hit region index map
+    C8 = S.C.C8 ;
+    
+    % Update hit region
+    h = true ;
+    
+    % New location
+    S.hitregion( C8.xcoord ) = ...
+      +( x - tconst.wincentx )  /  tconst.pixperdeg ;
+    S.hitregion( C8.ycoord ) = ...
+      -( y - tconst.wincenty )  /  tconst.pixperdeg ;
+    
+    % Mouse wheel clicks are buffered
+    if  w
+      
+      % See state of modifier keys
+      modshift = any (  k( S.C.SHIFT )  ) ;
+      modctrl  = any (  k( S.C.CTRL  )  ) ;
+      
+      % Choose the hitregion index and the delta-change value according to
+      % which modifiers are down. First check for the case where neither is
+      % down.
+      if  ~ modshift  &&  ~ modctrl
+        
+        % Change the angle
+        i = C8.rotation ;
+        d = S.C.dANGLE ;
+        
+      % Shift key only
+      elseif  modshift  &&  ~ modctrl
+        
+        % Change the height
+        i = C8.height ;
+        d = S.C.dHEIGHT ;
+        
+      % Control key only
+      elseif  ~ modshift  &&  modctrl
+        
+        % Change the width
+        i = C8.width ;
+        d = S.C.dWIDTH ;
+        
+      % No valid combination
+      else
+        
+        % Change nothing
+        i = 0 ;
+        d = 0 ;
+        
+      end % modifier keys
+      
+      % Are we changing anything else about the hit region?
+      if  i
+        
+        % Update value
+        S.hitregion( 1 , i ) = d * w  +  S.hitregion( 1 , i ) ;
+        
+        % Width and height cannot be less than zero
+        if  any ( i  ==  [ C8.width , C8.height ] )
+          
+          S.hitregion( 1 , i ) = max( [ 0 , S.hitregion( 1 , i ) ] ) ;
+          
+        % Angle must be between 0 and 360
+        elseif  i  ==  C8.rotation
+          
+          S.hitregion( 1 , i ) = mod ( S.hitregion( 1 , i ) , 360 ) ;
+          
+        end
+         
+      end % change param
+      
+    end % wheel clicks
+    
+    % Report the current centre, width, height, and angle
+    if  k( S.C.SPACE )
+      
+      % Measure time
+      t = GetSecs ;
+      
+      % If enough time has passed to print a new readout
+      if  S.t + S.C.MINDUR  <=  t
+      
+        % Calculate bar parameters relative to trial origin
+        i = S.hitregion( 1 , [ C8.xcoord , C8.ycoord , C8.width , ...
+              C8.height , C8.rotation ] )  -  [ tconst.origin( 1 : 2 ) ,...
+                0 , 0 , 0 ]
+        
+        % ... build output string ...
+        str = sprintf (  ...
+          'RF: x %0.2f, y %0.2f, w %0.2f, h %0.2f, a %0.2f\n'  ,  ...
+              )
+      
+        % ... and remember when it was printed
+        S.t = t ;
+        
+      end % print readout
+      
+    end % Space is down
+    
+    % Calculate a new PTB rect vertices for PTB coordinate system
+    S.rect( : , 1 ) = ...
+      [ -0.5 , +0.5 , +0.5 , -0.5 ]  *  S.hitregion( C8.width  ) ;
+    S.rect( : , 2 ) = ...
+      [ -0.5 , -0.5 , +0.5 , +0.5 ]  *  S.hitregion( C8.height ) ;
+    
+    % Convert degrees to pixels
+    S.rect = S.rect  *  tconst.pixperdeg ;
+    
+    % Sine and cosine of negative angle
+    s = sind (  - S.hitregion( C8.rotation )  ) ;
+    c = cosd (  - S.hitregion( C8.rotation )  ) ;
+    
+    % Apply rotation
+    S.rect = S.rect  *  [ c , s ; -s , c ] ;
+    
+    % Translate
+    S.rect( : , 1 ) = S.rect( : , 1 )  +  x ;
+    S.rect( : , 2 ) = S.rect( : , 2 )  +  y ;
+    
+    
+  % Right-eye buffer and left button is up
+  elseif  S.rect( 1 )  ==  -1
+    
+    % Draw nothing
+    return
+    
+  end % update appearance
+  
+  
+  %%% Draw to frame buffer %%%
+  
+  % Disable any alpha blending
+  Screen (  'BlendFunction'  ,  tconst.winptr  ,  ...
+    'GL_ONE'  ,  'GL_ZERO'  ) ;
+  
+  % Draw the rectangle
+  Screen (  'FillPoly'  ,  tconst.winptr  ,  []  ,  S.rect  )
+  
+  
+end % fstim
+
+
+% Trial closing function
+function  S = fclose ( S , type )
+  
+  % How do we want to close the function?
+  switch  type
+    
+    % Trial , do nothing and return the descriptor as is
+    case  't'
+      
+    % Session
+    case  's'  ,  S = [] ;
+      
+    % Not recognised
+    otherwise
+      
+      error ( 'MET:rfmapbar:type' , 'rfmapbar:fclose:invalid type given' )
+      
+  end % closure type
+  
+end % close
+
+
+% Check-sum function
+function  c = fchksum ( ~ )
+  
+  c = 0 ;
+  
+end % chksum
+

@@ -1,0 +1,63 @@
+
+% 
+% Match-to-sample task.
+% 
+% Written by Jackson Smith and Claire Poullias - March 2019
+% DPAG , University of Oxford
+% 
+
+
+name MatchToSample
+
+
+stim  % Task stimuli , 'none' is implicit
+  
+         fix  % Gaze fixation target
+      sample  % Displays the type of stimulus that the subject must choose
+      target  % Should match the sample, subject must select this
+  distractor  % Subject must avoid selecting this
+
+
+state  % States of the task , stim 'none' is applied to all states
+
+     start  10.0  fix                    % Establish fixation
+   holdfix   0.5  fix                    % Hold fixation
+   lostfix   1.0  fix                    % Fixation lost
+showsample   1.0  sample fix             % Show sample stim as sub fixates
+     delay   0.5  fix                    % Sample is in memory + fixation
+   present   0.0  target distractor fix  % Forced duration presentation
+   reactim   1.0  target distractor fix  % Subject free to respond
+
+
+edge  % Define state transitions
+
+    start
+      holdfix  B  fix   % start -> holdfix if fix targ before timeout
+      ignored  T  none  % start -> ignored if fixation never established
+    
+    holdfix
+      lostfix  B  none  % holdfix -> lostfix, fixation lost before timeout
+   showsample  T  fix   % holdfix -> showsample if fixation held
+
+    lostfix
+      holdfix  B  fix   % lostfix -> holdfix if fixation re-established
+       broken  T  none  % lostfix -> broken if fixation not made in time
+
+showsample
+        delay  T  fix          % showsample -> delay if fixation held
+       broken  B  none sample  % showsample -> broken if fixation lost
+
+     delay
+      present  T  fix                     % delay -> present, fixation held
+       broken  B  none target distractor  % delay -> broken, fixation broke
+
+   present
+      reactim  T  fix                     % present -> reactim, fixate held
+       broken  B  none target distractor  % present -> broken, fixate lost
+
+   reactim
+    correct  B  target      % reactim -> correct if target chosen
+     failed  B  distractor  % reactim -> failed if distractor chosen
+     broken  R  none        % reactim -> broken no selection before timeout
+     broken  T  none fix    % reactim -> broken timeout , no targ selected
+

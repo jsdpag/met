@@ -1,0 +1,62 @@
+
+%
+% Delayed saccade task logic. Task to measure 'response field' in LIP. 
+% 1) in a trial, a fixation point 1 appears at the center of screen, 
+% 2) after a proper time (set a variable, delay saccade?), the fixation point 1 disappears, and a fixation point 2 is shown up an % another location which is a possible position for response field (set a variable, fp2x, fp2y), 
+% 3) after fixating the fixation point 2 for a fixation duration (set a variable, fix2 dur), the trial is finished 
+% 4) for the new trial, go back to 1) and in 2) the fp2 will present in a different position. I
+% am thinking to make a % % systematically change for the different position in x and y.. 
+% for example, in Task variables, fp2x = 0,2,4,..,10, fp2y = 0,2,4,..,10 in a session.
+
+% M.L. Platt & P.W. Glimcher (1998) "Response fields of intraparietal neurons quantified with multiple saccadic targets" Exp Brain % Res. 121:65-75 
+% https://pdfs.semanticscholar.org/385a/3256b8f6ba90b2d0022f1cba82dc562daa3e.pdf
+
+% 
+% Written by Hee Kyoung Ko - Sept 2017 - DPAG , University of Oxford
+%
+
+name  DelayedSaccade
+
+stim  % Task stimuli , none is implicit
+  
+    fix  % Gaze fixation target
+   targ  % saccade target
+
+
+state  % States of the task , none applied to all states
+
+  start  		 10.0  fix                  % Establish fixation
+  holdfix   	0.5  fix                    % Hold fixation
+  lostfix     1.0  fix                    % Fixation lost
+  delay   	  0.5  targ fix         % fix and target presentation 
+  saccade     0.3  targ fix         % induce a saccade to target for a cue of the disappearance of fix point
+  holdtarg    1.0  targ                 % Hold fixation on the target
+
+edge  % Define state transitions
+
+  start
+    holdfix  B  fix   % start -> holdfix if fix targ before timeout
+    ignored  T  none  % start -> ignored if fixation never established
+    
+  holdfix
+    delay  T  fix   % holdfix -> delay if fixation held
+    lostfix  B  none  % holdfix -> lostfix if fixation lost before timeout
+
+  lostfix
+    holdfix  B  fix   % lostfix -> holdfix if fixation re-established
+    broken  T  none  % lostfix -> broken if fixation not made in time
+
+  delay
+    saccade  T  fix   % delay -> saccade if fixation held
+    broken  B  none targ  % delay -> broken if subject looks at anything else
+
+  saccade
+    holdtarg  B  targ   % saccade -> holdtarg if eyes move to target
+    failed  T  fix  % saccade -> failded if no saccade to the target
+
+  holdtarg
+    correct  T  targ  % holdtarg -> correct correct choice target
+    broken  B  none  % holdtarg -> broken if fixation not made on tha target in time
+
+
+

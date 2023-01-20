@@ -1,0 +1,33 @@
+/*TESTING*/
+sleep ( RTCONS->cd - 1 ) ;
+
+fprintf ( stderr , "cd %d\n"
+                   "  init %d\n"
+                   "  stdout_res %d\n"
+                   "  quit %d\n"
+                   "  awmsig %d\n"
+                   "  HOME %s\n"
+                   "  logfile %p\n" ,
+  RTCONS->cd , RTCONS->init , RTCONS->stdout_res , RTCONS->quit ,
+  (int) RTCONS->awmsig , RTCONS->HOME , RTCONS->logfile ) ;
+
+for  ( i = 0 ; i  <  METPIP ; ++i )
+  fprintf ( stderr , "  p[ %d ] %d , pf[ %d ] %d\n" ,
+    i , RTCONS->p[ i ] , i , RTCONS->pf[ i ] ) ;
+
+for  ( i = 0 ; i  <  SHMARG ; ++i )
+{
+  fprintf ( stderr ,
+            "  SHM %d , shmmap %p , shmsiz %ld , shmflg '%c' , shmnr %d\n"
+            "    refd %d , wefd %d , rflg %d , wflg %d , rcount %d\n\n" 
+            "    wefdn %d\n" ,
+    i , RTCONS->shmmap[i] , (long) RTCONS->shmsiz[i] , RTCONS->shmflg[i] ,
+    RTCONS->shmnr[i] , RTCONS->refd[i] , RTCONS->wefd[i] , RTCONS->rflg[i],
+    RTCONS->wflg[i] , (int) RTCONS->rcount[i] , RTCONS->wefdn[i] ) ;
+  
+  for  ( j = 0 ; j  <  RTCONS->wefdn[i] ; ++j )
+    fprintf ( stderr ,
+            "    wefdv[ %d ][ %d ] %d , wflgv[ %d ][ %d ] %d\n" ,
+      i , j , RTCONS->wefdv[i][j] , i , j , RTCONS->wflgv[i][j] ) ;
+}
+/*TESTING*/

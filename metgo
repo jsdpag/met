@@ -1,0 +1,439 @@
+
+#!/bin/bash
+
+# 
+# metgo  [cmet]
+# 
+# Matlab Electrophysiology Toolbox launch program. The user runs
+# this to open an instance of MET.
+# 
+# Without any input argument, a default set of MET controllers
+# are used. The name of a .cmet file can be provided to specify
+# MET controller options. Either the full or relative path of the
+# .cmet file can be given, or the name of a .cmet file in the
+# met/cmet directory can be given.
+# 
+# Returns 0 if run successfully, 1 on error.
+# 
+# Dependency - metserver , default.cmet , version.txt
+# 
+# Written by Jackson Smith - June 2016 - DPAG, University of Oxford
+# 
+
+
+### CONSTANTS ###
+
+# Program return values
+ MGSUCC=0 # Program success
+ MGFAIL=1 # Program failure
+
+# MET files and directories
+  METSRV=metserver      # metserver executable
+  METCTL=metcontroller  # MET controller wrapper
+  METPRS=metparse       # MET schedule.txt and task logic parser
+  METMET=met.mexa64     # Matlab MET IPC interface function
+  METVER=version.txt    # Verstion file
+  METDEF=default.cmet   # Default .cmet file
+  METCMT=cmet           # CMET file directory
+  METMAT=m              # m-file and mex bin dir
+  METTAL=tasklogic      # Task logic file dir
+  METSTM=stim           # Stimulus definition dir
+ METROOT=~/.met         # Runtime root directory
+
+# Controller options
+ METMOP=( -nojvm  -nodesktop  -nosplash  -desktop  -noFigureWindows  -nodisplay  -debug  -singleCompThread  -nouserjavapath  -softwareopengl  -nosoftwareopengl ) # Matlab
+ METRSH=( -rstim  -reye  -rnsp ) # Read  shared mem
+ METWSH=( -wstim  -weye  -wnsp ) # Write shared mem
+ METRSC=( -cbmex  -ivxudp  -ptbdaq ) # Resource opts
+ 
+ METCOM=#  # .cmet comment character
+
+
+### Environment checking ###
+
+# Location of metgo should be where MET functions are
+METDIR=$( dirname  $0 )
+
+# Look for dependent files
+
+# Version
+if  [ ! -f  "$METDIR/$METVER" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METVER"
+  
+# Default controller options
+elif  [ ! -f  "$METDIR/$METDEF" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METDEF"
+  
+# metserver function
+elif  [ ! -x  "$METDIR/$METSRV" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METSRV"
+
+# cmet directory
+elif  [ ! -d  "$METDIR/$METCMT" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METCMT"
+
+# Matlab directory
+elif  [ ! -d  "$METDIR/$METMAT" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METMAT"
+
+# MET controller wrapper function
+elif  [ ! -f  "$METDIR/$METMAT/$METCTL.m" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METMAT/$METCTL.m"
+
+# MET schedule.txt and task logic parser
+elif  [ ! -f  "$METDIR/$METMAT/$METPRS.m" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METMAT/$METPRS.m"
+
+# Matlab MET IPC interface function
+elif  [ ! -f  "$METDIR/$METMAT/$METMET" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METMAT/$METMET"
+
+# Task logic directory
+elif  [ ! -d  "$METDIR/$METTAL" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METLAT"
+
+# Stimulus definition directory
+elif  [ ! -d  "$METDIR/$METSTM" ] ; then
+  
+  errmsg="metgo: Can't find $METDIR/$METSTM"
+  
+fi
+
+# User must have write permission in home directory
+if  [ ! -w "$HOME" ] ; then
+  
+  errmsg="metgo: no write permission for ~ i.e. $HOME"
+  
+fi
+
+# Respond to error
+if  [ -n  "$errmsg" ] ; then
+  echo  $errmsg  1>&2
+  exit  $MGFAIL
+fi
+
+# Report version
+echo  MET version $( cat  $METDIR/$METVER )
+
+
+### Check input argument ###
+
+# Too many input arguments
+if  [ "1" -lt "$#" ] ; then
+  
+  errmsg="metgo: too many input arguments"
+  
+# No input, use default
+elif  [ "0" -eq "$#" ] ; then
+  
+  MGCMET=$METDIR/$METDEF
+  
+# One input argument
+else
+  
+  MGCMET=$1
+  
+  # File name must end in .cmet
+  if  [[ $MGCMET != *'.cmet' ]] ; then
+    
+    errmsg="metgo: input arg, not .cmet"
+    
+  # Check user provided input
+  elif  [ ! -f  "$MGCMET" ] ; then
+    
+    # Not recognised, it might be a file name in .cmet dir
+    if  [ -f  "$METDIR/$METCMT/$MGCMET" ] ; then
+      
+      MGCMET=$METDIR/$METCMT/$MGCMET
+    
+    else
+      
+      errmsg="metgo: input arg, file not found"
+      
+    fi
+    
+  fi # check user input
+  
+fi # check input
+
+# Respond to error
+if  [ -n  "$errmsg" ] ; then
+  echo  $errmsg  1>&2
+  exit  $MGFAIL
+fi
+
+# Report MET controller option file
+echo "MET controller options: $MGCMET"
+
+
+### Read MET controller options ###
+
+# Line count
+N=$( wc -l  $MGCMET  |  sed 's/ .*//' )
+
+if  [ "0" -eq "$N" ] ; then
+  echo  "metgo: $MGCMET is empty"  1>&2
+  exit  $MGFAIL
+fi
+
+# Line index
+N=-1
+
+# Controller index
+I=-1
+
+# metserver input argument count
+a=0
+
+# Shared memory writer count, initialise to 0
+for  (( i=0 ; i<${#METWSH[*]} ; i++ )) ; do
+  wsm[ $i ]=0
+done
+
+# Shared memory reader count, initialise to 0
+for  (( i=0 ; i<${#METRSH[*]} ; i++ )) ; do
+  rsm[ $i ]=0
+done
+
+# Resource count, initialise to 0
+for  (( i=0 ; i<${#METRSC[*]} ; i++ )) ; do
+  rsc[ $i ]=0
+done
+
+# Parse controller options, line by line
+while  read  l ;  do
+  
+  # Increment line index
+  ((N++))
+  
+  # Eliminate comments
+  l=$( echo $l | sed "s/$METCOM.*//" )
+  
+  # Split tokens
+  T=( $l )
+  
+  # Skip empty line
+  if  [ "0"  -eq  ${#T[*]} ] ; then  continue ; fi
+  
+  # MET controller function
+  mc=${T[0]}
+  
+  # Check that there is no file suffix
+  if  [[ $mc == *'.m' ]] ; then
+    echo  "metgo: remove .m from $mc at line $N of $MGCMET"
+    exit  $MGFAIL
+  fi
+  
+  # Check that it exists
+  if  [ !  -f  "$METDIR/$METMAT/$mc.m" ] ; then
+    echo  "metgo: $mc not found in $METDIR/$METMAT"
+    exit  $MGFAIL
+  fi
+  
+  # We can now count another MET controller ...
+  ((I++))
+  
+  # ... and start building a option strings
+   mopts=''
+  ctrlop=$mc
+  
+  # Examine options. Surely there's a more elegant way. But
+  # at least this is simple.
+  for (( i=1 ; i<${#T[*]} ; i++ )) ; do
+    
+    # Guarantee that x is null string and j is -1
+    x=''
+    j=-1
+    
+    # Test for Matlab options
+    x=$( printf "%s\n" ${METMOP[*]} | grep -x -- ${T[$i]} )
+    
+    # Append Matlab option, skip to next option
+    if  [ -n  "$x" ] ; then
+      mopts=$( echo $mopts $x )
+      continue
+    fi
+    
+    # Controller options
+    
+    # Look for read shm option, and get line number
+    x=$( printf "%s\n" ${METRSH[*]} | grep -nx -- ${T[$i]} )
+    
+    # No read shm option, test for write shm option
+    if  [ -z  "$x" ] ; then
+      
+      x=$( printf "%s\n" ${METWSH[*]} | grep -nx -- ${T[$i]} )
+      
+    # Read shm option found
+    else
+      
+      # Increment reader count, j is no longer -1
+      j=$( echo  $x  |  sed  's/:.*//' )
+      (( j-- ))
+      (( rsm[ $j ]++ ))
+      
+    fi
+    
+    # No write shm option, test for resource option
+    if  [ -z  "$x" ] ; then
+      
+      x=$( printf "%s\n" ${METRSC[*]} | grep -nx -- ${T[$i]} )
+      
+    # No read shm option. Write shm option was found.
+    elif  [ "-1"  -eq  "$j" ] ; then
+      
+      # Increment writer count, j is no longer -1
+      j=$( echo  $x  |  sed  's/:.*//' )
+      (( j-- ))
+      (( wsm[ $j ]++ ))
+      
+      # Check that there is no more than one writer for this
+      # shared memory
+      if  [ "1"  -lt  "${wsm[ $j ]}" ] ; then
+        echo  "metgo: Only 1 ${METWSH[ $j ]} allowed"  1>&2
+        exit  $MGFAIL
+      fi
+      
+    fi
+    
+    # No resource option found. Don't check j.
+    if  [ -z  "$x" ] ; then
+      : ;
+    
+    # No write shm option, but there is a resource option
+    elif  [ "-1"  -eq  "$j" ] ; then
+      
+      # Increment resource count, j is no longer -1
+      j=$( echo  $x  |  sed  's/:.*//' )
+      (( j-- ))
+      (( rsc[ $j ]++ ))
+      
+      # Check that there is no more than one writer for this
+      # resource
+      if  [ "1"  -lt  "${rsc[ $j ]}" ] ; then
+        echo  "metgo: Only 1 ${METRSC[ $j ]} allowed"  1>&2
+        exit  $MGFAIL
+      fi
+      
+    fi
+    
+    # Remove line number
+    x=$( echo  $x  |  sed  's/.*://' )
+      
+    # Append controller option
+    if  [ -n  "$x" ] ; then
+      
+      ctrlop=$( echo $ctrlop $x )
+      continue
+      
+    # Unrecognised option
+    else
+      
+      ((N++))
+      echo  "metgo: Unrecognised option ${T[$i]} at line $N in $MGCMET"  1>&2
+      exit  $MGFAIL
+      
+    fi
+    
+  done # options
+  
+  # Test that all options are unique for this controller.
+  # First get the number of unique options
+  x=$( printf  "%s\n" $mopts $ctrlop  | uniq  | wc -l )
+  
+  # This should be exactly the same as the number of options
+  if  [ "${#T[*]}"  -ne  "$x" ] ; then
+    ((N++))
+    echo  "metgo: Repeat options at line $N in $MGCMET"  1>&2
+    exit  $MGFAIL
+  fi
+  
+  # Add input arguments to list for metserver
+  args[ $a ]=$mopts
+  ((a++))
+  args[ $a ]=$ctrlop
+  ((a++))
+  
+done < $MGCMET # Loop each line of the .cmet file
+
+# Check that controller options were given
+if  [ "-1" -eq "$I" ] ; then
+  echo  "metgo: No controller options in $MGCMET"  1>&2
+  exit  $MGFAIL
+fi
+
+# Check that shared memory has writer and reader(s) or neither
+for  (( i=0 ; i<${#METWSH[*]} ; i++ )) ; do
+  
+  # Writer but no reader
+  if    [ "0" -lt "${wsm[ $i ]}" ] && [ "0" -eq "${rsm[ $i ]}" ]
+  then
+    
+    errmsg="metgo: ${METWSH[$i]} but no ${METRSH[$i]}"
+    
+  # Reader but no writer
+  elif  [ "0" -eq "${wsm[ $i ]}" ] && [ "0" -lt "${rsm[ $i ]}" ]
+  then
+    
+    errmsg="metgo: ${METRSH[$i]} but no ${METWSH[$i]}"
+    
+  fi
+  
+  # Respond to error
+  if  [ -n  "$errmsg" ] ; then
+    echo  $errmsg  1>&2
+    exit  $MGFAIL
+  fi
+  
+done # check for shared memory writer/reader balance
+
+
+### Set system socket buffer sizes, for cbmex ###
+
+# NOTE adding lines to /etc/sysctl.conf makes this change
+# permanent:
+#   net.core.rmem_max=16777216
+#   net.core.rmem_default=8388608
+
+#echo  "Skipping: Set system socket buffer sizes, for cbmex"
+#sudo  sysctl -w net.core.rmem_max = 16777216
+#sudo  sysctl -w net.core.rmem_default = 8388608
+
+
+### Make MET runtime root directory ###
+
+mkdir  $METROOT
+
+
+### Start MET controllers ###
+
+# Remove unecessary variables. Not METDIR, METSRV, METROOT,
+# MGSUCC, rsm, or args.
+unset MGFAIL METCTL METPRS METMET METVER METDEF METCMT METMAT METTAL METSTM METMOP METRSH METWSH METRSC METCOM MGCMET N I a wsm rsc l T mc mopts ctrlop x j i
+
+# The bizarre syntax around args is necessary to preserve
+# empty strings as separate input arguments to metserver
+$METDIR/$METSRV  ${rsm[*]} "${args[@]}"
+
+
+### Remove MET runtime root directory ###
+
+rm -r  $METROOT
+
+
+### Exit Success ###
+
+exit  $MGSUCC
+
+
+### End of metgo ###
+

@@ -1,0 +1,57 @@
+
+%
+% Odd-one-out task. Supports fixed-presentation or reaction-time versions
+% of the task, or a combination of both. This can be varied by changing the
+% timeout duration of the 'present' state. This is designed for deterministic
+% stimuli by using a separate set of task stimulus labels on the reactim state
+% than the presentation state.
+%
+% Written by Jackson Smith - Feb 2017 - DPAG , University of Oxford
+%
+
+name OddOneOut_Det
+
+
+stim  % Task stimuli , none is implicit
+  
+              fix  % Gaze fixation target
+      target_pres  % The odd one out stimulus during present state
+  distractor_pres  % Distractor stimuli during present state
+        target_rt  % The odd one out stimulus during reactim state
+    distractor_rt  % The distractor stimulu during reactim state
+
+
+state  % States of the task , none applied to all states
+
+  start  10.0  fix                              % Establish fixation
+holdfix   0.5  fix                              % Hold fixation
+lostfix   1.0  fix                              % Fixation lost
+present   1.0  target_pres distractor_pres fix  % Stim. presentation only
+reactim   0.5  target_rt   distractor_rt   fix  % Subject free to respond
+
+
+edge  % Define state transitions
+
+  start
+    holdfix  B  fix   % start -> holdfix if fix targ before timeout
+    ignored  T  none  % start -> ignored if fixation never established
+    
+  holdfix
+    lostfix  B  none  % holdfix -> lostfix if fixation lost before timeout
+    present  T  fix   % holdfix -> present if fixation held
+
+  lostfix
+    holdfix  B  fix   % lostfix -> holdfix if fixation re-established
+     broken  T  none  % lostfix -> broken if fixation not made in time
+
+  present
+   reactim  T  fix                     % present -> reactim , fixation held
+    broken  B  none target_pres distractor_pres
+                                       % present -> broken if fixation lost
+
+  reactim
+    correct  B  target_rt     % reactim -> correct if target chosen
+     failed  B  distractor_rt % reactim -> failed if distractor chosen
+     broken  R  none          % reactim -> broken no selection before timeout
+     broken  T  none fix      % reactim -> broken timeout , no targ selected
+

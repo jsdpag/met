@@ -1,0 +1,9 @@
+param,value
+taskvar,MotionCoherence
+correct,0
+resp_x,0
+resp_y,4
+resp_frad,4.5
+resp_fang,0
+resp_rad,1.5
+rt_trials,both
